@@ -5,15 +5,6 @@ import sys
 import time
 import getopt
 
-try:
-    from win32api import GetShortPathName
-    from win32com.shell import shell
-except:
-    if os.name == "nt":
-        print "[!] Failed to import win32api/win32com modules, please install these! Bailing..."
-        sys.exit(1)
-
-
 from sulley import pedrpc
 
 PORT  = 26003
@@ -47,6 +38,31 @@ class vmcontrol_pedrpc_server (pedrpc.server):
         @param interactive:  (Option, def=False) Interactive mode, prompts for input values
         '''
 
+
+#from vboxapi import VirtualBoxManager
+#
+#virtboxManager = VirtualBoxManager(None, None)
+#virtbox = virtboxManager.vbox
+#virtboxMgr = virtboxManager.mgr
+#constants = virtboxManager.constants
+#
+#virtboxName = "WinXP"
+#snapshotName = "sulleytest"
+#
+#virtboxMachine = virtbox.findMachine(virtboxName)
+#virtboxSession = virtboxMgr.getSessionObject(virtbox)
+#virtboxMachine.lockMachine(virtboxSession, constants.LockType_Shared)
+#virtboxSession.console.powerDown()
+#
+#sulleysnapshot=virtboxMachine.findSnapshot(snapshotName)
+#virtboxMachine.lockMachine(virtboxSession,constants.LockType_Shared)
+#virtboxSession.console.restoreSnapshot(sulleysnapshot)
+#
+#virtboxSession = virtboxMgr.getSessionObject(virtbox)
+##virtboxMachine.lockMachine(virtboxSession,constants.LockType_Shared)
+#virtboxMachine.launchVMProcess(virtboxSession,"gui","")  session returns locked and the vm doesn't start
+
+
         # initialize the PED-RPC server.
         pedrpc.server.__init__(self, host, port)
 
@@ -55,68 +71,9 @@ class vmcontrol_pedrpc_server (pedrpc.server):
 
         self.interactive = interactive
 
-        if interactive:
-            print "[*] Entering interactive mode..."
-
-            # get vmrun path
-            try:
-                while 1:
-                    print "[*] Please browse to the folder containing vmrun.exe..."
-                    pidl, disp, imglist = shell.SHBrowseForFolder(0, None, "Please browse to the folder containing vmrun.exe:")
-                    fullpath = shell.SHGetPathFromIDList(pidl)
-                    file_list = os.listdir(fullpath)
-                    if "vmrun.exe" not in file_list:
-                        print "[!] vmrun.exe not found in selected folder, please try again"
-                    else:
-                        vmrun = fullpath + "\\vmrun.exe"
-                        print "[*] Using %s" % vmrun
-                        break
-            except:
-                print "[!] Error while trying to find vmrun.exe. Try again without -I."
-                sys.exit(1)
-
-            # get vmx path
-            try:
-                while 1:
-                    print "[*] Please browse to the folder containing the .vmx file..."
-                    pidl, disp, imglist = shell.SHBrowseForFolder(0, None, "Please browse to the folder containing the .vmx file:")
-                    fullpath = shell.SHGetPathFromIDList(pidl)
-                    file_list = os.listdir(fullpath)
-
-                    exists = False
-                    for file in file_list:
-                        idx = file.find(".vmx")
-                        if idx == len(file) - 4:
-                            exists = True
-                            vmx = fullpath + "\\" + file
-                            print "[*] Using %s" % vmx
-
-                    if exists:
-                        break
-                    else:
-                        print "[!] No .vmx file found in the selected folder, please try again"
-            except:
-                raise
-                print "[!] Error while trying to find the .vmx file. Try again without -I."
-                sys.exit(1)
-
-        # Grab snapshot name and log level if we're in interactive mode
-        if interactive:
-            snap_name = raw_input("[*] Please enter the snapshot name: ")
-            log_level = raw_input("[*] Please enter the log level (default 1): ")
-
-            if log_level:
-                log_level = int(log_level)
-            else:
-                log_level = 1
-
         # if we're on windows, get the DOS path names
-        if os.name == "nt":
-            self.vmrun = GetShortPathName(r"%s" % vmrun)
-            self.vmx   = GetShortPathName(r"%s" % vmx)
-        else:
-            self.vmrun = vmrun
-            self.vmx   = vmx
+        self.vmrun = vmrun
+        self.vmx   = vmx
 
         self.snap_name   = snap_name
         self.log_level   = log_level
@@ -322,11 +279,7 @@ if __name__ == "__main__":
     except getopt.GetoptError:
         ERR(USAGE)
 
-    if sys.platform.startswith("linux"):
-	vmrun       = "/usr/bin/vmrun"
-    else:
-    	vmrun       = r"C:\progra~1\vmware\vmware~1\vmrun.exe"
-
+    vmrun       = r"C:\progra~1\vmware\vmware~1\vmrun.exe"
     vmx         = None
     snap_name   = None
     log_level   = 1
@@ -341,7 +294,7 @@ if __name__ == "__main__":
         if opt in ("--port"):              PORT        = int(arg)
 
     # OS check
-    if not os.name == "nt" and interactive:
+    if not os.name == "nt":
         print "[!] Interactive mode currently only works on Windows operating systems."
         ERR(USAGE)
 

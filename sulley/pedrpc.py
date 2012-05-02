@@ -2,6 +2,7 @@ import sys
 import struct
 import socket
 import cPickle
+import platform
 
 ########################################################################################################################
 class client:
@@ -10,8 +11,10 @@ class client:
         self.__port           = port
         self.__dbg_flag       = False
         self.__server_sock    = None
-	#self.NOLINGER         = struct.pack('ii', 1, 0)
-	self.NOLINGER         = struct.pack('HH', 1, 0)
+	if platform.linux_distribution()[0] == "debian" or platform.linux_distribution()[0] == "Ubuntu":
+		self.NOLINGER         = struct.pack('ii', 1, 0)
+	else:
+		self.NOLINGER         = struct.pack('HH', 1, 0)
 
 
     ####################################################################################################################
