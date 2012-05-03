@@ -228,7 +228,7 @@ if __name__ == "__main__":
     if sys.platform.startswith("linux"):
         vboxmanage  = "/usr/bin/vboxmanage"
     else:
-        vboxmanage = r"C:\progra~1\Sun\xVM~1\vboxmanage.exe"
+        vboxmanage = r"C:\progra~1\oracle\virtua~1\vboxmanage.exe"
 
     vbox           = None
     snap_name      = None
