@@ -4,10 +4,11 @@ import os
 import sys
 import time
 import getopt
+from vboxapi import VirtualBoxManager
 
 try:
     from win32api import GetShortPathName
-    from win32com.shell import shell
+    from win34com.shell import shell
 except:
     if os.name == "nt":
         print "[!] Failed to import win32api/win32com modules, please install these! Bailing..."
@@ -77,6 +78,14 @@ class vmcontrol_pedrpc_server (pedrpc.server):
         self.log("\t log level:  %d" % self.log_level)
         self.log("Awaiting requests...")
 
+        virtboxManager = VirtualBoxManager(None, None)
+        virtbox = virtboxManager.vbox
+        virtboxMgr = virtboxManager.mgr
+        constants = virtboxManager.constants
+        virtboxMachine = virtbox.findMachine(self.vbox)
+
+	self.virtboxMachine = virtboxMachine
+
 
     def alive (self):
         '''
@@ -96,21 +105,6 @@ class vmcontrol_pedrpc_server (pedrpc.server):
 
         if self.log_level >= level:
             print "[%s] %s" % (time.strftime("%I:%M.%S"), msg)
-
-
-#    def set_vboxmanage (self, vboxmanage):
-#        self.log("setting vboxmanage to %s" % vboxmanage, 2)
-#        self.vboxmanage = vboxmanage
-
-
-#    def set_vbox (self, vbox):
-#        self.log("setting vbox to %s" % vbox, 2)
-#        self.vbox = vbox
-
-
-#    def set_snap_name (self, snap_name):
-#        self.log("setting snap_name to %s" % snap_name, 2)
-#        self.snap_name = snap_name
 
 
     def vbcommand (self, command):
@@ -148,59 +142,19 @@ class vmcontrol_pedrpc_server (pedrpc.server):
     ###
 
 
-#    def delete_snapshot (self, snap_name=None):
-#        if not snap_name:
-#            snap_name = self.snap_name
-#
-#        self.log("deleting snapshot: %s" % snap_name, 2)
-#
-#        command = self.vboxmanage + " deleteSnapshot " + self.vbox + " " + '"' + snap_name + '"'
-#        return self.vbcommand(command)
-
-
-#    def list (self):
-#        self.log("listing running images", 2)
-#
-#        command = self.vboxmanage + " list"
-#        return self.vbcommand(command)
-
-
-#    def list_snapshots (self):
-#        self.log("listing snapshots", 2)
-#
-#        command = self.vboxmanage + " listSnapshots " + self.vbox
-#        return self.vbcommand(command)
-
-
-#    def reset (self):
-#        self.log("resetting image", 2)
-#
-#        command = self.vboxmanage + " reset " + self.vbox
-#        return self.vbcommand(command)
-
-
     def revert_to_snapshot (self, snap_name=None):
 	if self.restorecurrent:
             self.log("reverting to snapshot: %s" % snap_name, 2)
             command = self.vboxmanage + " snapshot " + self.vbox + " restorecurrent"
+            print command
             return self.vbcommand(command)
         else:
             if not snap_name:
                 snap_name = self.snap_name
             self.log("reverting to snapshot: %s" % snap_name, 2)
             command = self.vboxmanage + " snapshot " + self.vbox + " restore " + snap_name
+            print command
             return self.vbcommand(command)
-
-
-#    def snapshot (self, snap_name=None):
-#        if not snap_name:
-#            snap_name = self.snap_name
-#
-#        self.log("taking snapshot: %s" % snap_name, 2)
-#
-#        command = self.vboxmanage + " snapshot " + self.vbox + " " + '"' + snap_name + '"'
-#
-#        return self.vbcommand(command)
 
 
     def start (self):
@@ -217,13 +171,6 @@ class vmcontrol_pedrpc_server (pedrpc.server):
         return self.vbcommand(command)
 
 
-#    def suspend (self):
-#        self.log("suspending image", 2)
-#
-#        command = self.vboxmanage + " suspend " + self.vbox
-#        return self.vbcommand(command)
-
-
     ###
     ### EXTENDED COMMANDS
     ###
@@ -234,36 +181,39 @@ class vmcontrol_pedrpc_server (pedrpc.server):
 
         # revert to the specified snapshot and start the image.
         self.stop()
+        self.wait_stop()
         self.revert_to_snapshot()
+        self.wait_restore()
         self.start()
-
-        # wait for the snapshot to come alive.
-        # self.wait()
+        self.wait_start()
 
 
-#    def is_target_running (self):
-#        # sometimes vboxmanage reports that the VM is up while it's still reverting.
-#        time.sleep(10)
-#
-#        for line in self.list().lower().split('\n'):
-#            if os.name == "nt":
-#                try:
-#                    line = GetShortPathName(line)
-#                # skip invalid paths.
-#                except:
-#                    continue
-#
-#            if self.vbox.lower() == line.lower():
-#                return True
-#
-#        return False
+    def is_target_ready (self):
+        # sometimes vboxmanage reports that the VM is up while it's still reverting.
+        time.sleep(10)
+        return self.virtboxMachine.state
 
 
-#    def wait (self):
-#        self.log("waiting for vbox to come up: %s" % self.vbox)
-#        while 1:
-#            if self.is_target_running():
-#                break
+    def wait_stop (self):
+        self.log("waiting for vbox %s to stop" % self.vbox)
+        while 1:
+            if self.is_target_ready() == 1:
+                break
+
+
+    def wait_restore (self):
+        self.log("waiting for vbox %s to be restored" % self.vbox)
+        while 1:
+            if self.is_target_ready() == 2:
+                break
+
+
+    def wait_start (self):
+        self.log("waiting for vbox %s to come up" % self.vbox)
+        while 1:
+            if self.is_target_ready() == 5:
+                break
+
 
 
 ########################################################################################################################
@@ -272,12 +222,14 @@ if __name__ == "__main__":
     try:
         opts, args = getopt.getopt(sys.argv[1:], "v:m:s:l:c", ["vbox=", "vboxmanage=", "snapshot=", "log_level=", "restorecurrent", "port="])
     except getopt.GetoptError:
+        print "error here"
         ERR(USAGE)
 
     if sys.platform.startswith("linux"):
         vboxmanage  = "/usr/bin/vboxmanage"
     else:
         vboxmanage = r"C:\progra~1\Sun\xVM~1\vboxmanage.exe"
+
     vbox           = None
     snap_name      = None
     log_level      = 1
@@ -293,7 +245,8 @@ if __name__ == "__main__":
 
     # OS check
 
-    if not vbox and not restorecurrent or not snap_name:
+    if not vbox and (not restorecurrent or not snap_name):
+        print "error there"
         ERR(USAGE)
 
     servlet = vmcontrol_pedrpc_server("0.0.0.0", PORT, vboxmanage, vbox, snap_name, log_level, restorecurrent)
